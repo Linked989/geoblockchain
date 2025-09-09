@@ -68,9 +68,9 @@ where
         &self,
         _parent: &BlockId<B>,
         pre_hash: &B::Hash,
-        _digest: Option<&[u8]>,
+        _pre_digest: Option<&[u8]>,
         seal: &RawSeal,
-        target: &Self::Difficulty,
+        target: Self::Difficulty,
     ) -> Result<bool, PowError<B>> {
         // If the seal cannot be parsed, consider verification failed.
         let Nonce(n) = match Nonce::from_seal(seal) {
@@ -78,6 +78,6 @@ where
             None => return Ok(false),
         };
         let work = checksum64::<B>(pre_hash, n);
-        Ok(work < target64(target))
+        Ok(work < target64(&target))
     }
 }
