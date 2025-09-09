@@ -1,13 +1,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use parity_scale_codec::{Decode, Encode};
-use sc_consensus_pow::PowAlgorithm;
-use sp_consensus_pow::Seal;
+use sc_consensus_pow::{PowAlgorithm, Error as PowError, Seal};
+use sp_blockchain;                   // for Error in difficulty
 use sp_core::U256;
-use sp_runtime::traits::Block as BlockT;
+use sp_runtime::{traits::Block as BlockT, generic::BlockId};
 
-/// A tiny PoW that uses a 64-bit checksum(work) over (pre_hash || nonce).
-/// Work succeeds when work < target.  For demo/dev only.
+/// A tiny PoW that uses a 64-bit checksum over (pre_hash || nonce).
+/// Work succeeds when sum(bytes) < target. Dev/demo only.
 #[derive(Clone)]
 pub struct MiniPow;
 
@@ -29,10 +29,8 @@ impl Nonce {
     }
 }
 
-/// Sum of bytes mod 2^64 over pre_hash || nonce_le
 fn checksum64<B: BlockT>(pre_hash: &B::Hash, nonce: u64) -> u64 {
     let mut acc: u64 = 0;
-    // Hash is typically 32 bytes (H256) – treat generically:
     for byte in pre_hash.as_ref() {
         acc = acc.wrapping_add(*byte as u64);
     }
@@ -42,10 +40,7 @@ fn checksum64<B: BlockT>(pre_hash: &B::Hash, nonce: u64) -> u64 {
     acc
 }
 
-/// Convert U256 target into a 64-bit threshold by clamping.
-/// This keeps compatibility with PoW difficulty APIs while our work is 64-bit.
 fn target64(target: &U256) -> u64 {
-    // Take low 64 bits; if target doesn't fit, we saturate to u64::MAX.
     if *target > U256::from(u64::MAX) {
         u64::MAX
     } else {
@@ -59,43 +54,27 @@ where
 {
     type Difficulty = U256;
 
-    fn difficulty(&self, _parent: &sp_runtime::generic::BlockId<B>) -> Result<Self::Difficulty, sp_blockchain::Error> {
-        // Minimal fixed difficulty for dev chains. Tweak as desired.
-        // Higher target => easier. Start permissive to avoid long mining.
-        Ok(U256::from(u64::MAX / 1024)) // easy target
+    /// Return the current target (easy for dev).
+    fn difficulty(
+        &self,
+        _parent: &BlockId<B>,
+    ) -> Result<Self::Difficulty, sp_blockchain::Error> {
+        // Very permissive by default: u64::MAX/1024 as a U256.
+        Ok(U256::from(u64::MAX / 1024))
     }
 
+    /// Verify a seal: (parent, pre_hash, digest, seal, target)
     fn verify(
         &self,
+        _parent: &BlockId<B>,
         pre_hash: &B::Hash,
+        _digest: Option<&[u8]>,
         seal: &Seal,
         target: &Self::Difficulty,
-    ) -> bool {
-        let Some(Nonce(n)) = Nonce::from_seal(seal) else { return false; };
+    ) -> Result<bool, PowError<B>> {
+        let Nonce(n) = Nonce::from_seal(seal)
+            .ok_or(PowError::SealDecodeFailed)?;
         let work = checksum64::<B>(pre_hash, n);
-        work < target64(target)
-    }
-
-    fn mine(
-        &self,
-        pre_hash: &B::Hash,
-        target: &Self::Difficulty,
-        mut round: u32,
-    ) -> Option<Seal> {
-        // Deterministic, round-based search. Each call advances nonce window.
-        // This is single-threaded & intentionally dumb.
-        let t = target64(target);
-        let base: u64 = (round as u64) << 32;
-        let limit: u64 = base + (1u64 << 20); // search 1M candidates per round
-        let mut nonce = base;
-        while nonce < limit {
-            if checksum64::<B>(pre_hash, nonce) < t {
-                return Some(Nonce(nonce).to_seal());
-            }
-            nonce = nonce.wrapping_add(1);
-        }
-        // No solution in this slice; bump round and try later.
-        round = round.wrapping_add(1);
-        None
+        Ok(work < target64(target))
     }
 }
