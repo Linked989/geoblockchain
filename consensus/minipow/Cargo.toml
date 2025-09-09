@@ -5,23 +5,19 @@ edition = "2021"
 license = "Unlicense"
 
 [dependencies]
-sp-core = { version = "30.0.0", default-features = false }         # align with your substrate version
-sp-runtime = { version = "30.0.0", default-features = false }
-sp-consensus-pow = { version = "0.44.0", default-features = false } # provides Seal type & difficulty API
-sc-consensus-pow = { version = "0.44.0", default-features = false } # PowAlgorithm trait lives here
-sp-api = { version = "30.0.0", default-features = false }
-parity-scale-codec = { version = "3", default-features = false, features = ["derive"] }
-minipow = { path = "../consensus/minipow" }
-sc-consensus-pow = { version = "0.44.0" }
+parity-scale-codec = '3.2.1'
+rand = { version = "0.8", features = ["small_rng"] }
+sha3 = "0.9"
+noise = "0.7.0"
+log = "0.4.17"
 
 
-[features]
-default = ["std"]
-std = [
-  "sp-core/std",
-  "sp-runtime/std",
-  "sp-consensus-pow/std",
-  "sc-consensus-pow/std",
-  "sp-api/std",
-  "parity-scale-codec/std",
-]
+
+# Substrate packages
+# consensus-geo-pow = { path = '../consensus/minipow' }
+sp-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.22" }
+sp-consensus-pow = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.22" }
+sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.22" }
+sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.22" }
+sp-std = '4.0.0'
+sc-consensus-pow = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.22" }
