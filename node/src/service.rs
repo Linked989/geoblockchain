@@ -282,24 +282,6 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
         .spawn_essential_handle()
         .spawn_blocking("pow", Some("block-authoring"), worker_task);
 
-            let (_worker, worker_task) = sc_consensus_pow::start_mining_worker(
-            Box::new(pow_block_import),
-            client.clone(),
-            select_chain.clone(),
-            MiniPow,                        // ← MiniPow here too
-            proposer_factory,
-            network.clone(),
-            network.clone(),
-            None,
-            move |_, ()| async move {
-                let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-                Ok(timestamp)
-            },
-            Duration::from_secs(10),
-            Duration::from_secs(10),
-            can_author_with,
-        );
-
     // Set up GRANDPA finality
     let keystore = if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
     let grandpa_config = sc_finality_grandpa::Config {
