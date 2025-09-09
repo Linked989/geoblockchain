@@ -69,6 +69,7 @@ pallet-contracts = { version = "4.0.0-dev", git = "https://github.com/paritytech
 pallet-contracts-rpc = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.22" }
 
 sha3pow = { path = '../consensus/sha3pow' }
+minipow = { path = '../consensus/minipow' }
 log = "0.4.17"
 futures = "0.3"
 

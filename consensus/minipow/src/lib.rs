@@ -1,8 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use parity_scale_codec::{Decode, Encode};
-use sc_consensus_pow::{PowAlgorithm, Error as PowError, Seal};
-use sp_blockchain;                   // for Error in difficulty
+use sc_consensus_pow::{PowAlgorithm, Error as PowError};
+use sp_consensus_pow::Seal as RawSeal;
 use sp_core::U256;
 use sp_runtime::{traits::Block as BlockT, generic::BlockId};
 
@@ -15,10 +15,10 @@ pub struct MiniPow;
 pub struct Nonce(u64);
 
 impl Nonce {
-    pub fn to_seal(self) -> Seal {
+    pub fn to_seal(self) -> RawSeal {
         self.0.to_le_bytes().to_vec()
     }
-    pub fn from_seal(seal: &Seal) -> Option<Self> {
+    pub fn from_seal(seal: &RawSeal) -> Option<Self> {
         if seal.len() == 8 {
             let mut b = [0u8; 8];
             b.copy_from_slice(&seal[..8]);
@@ -57,8 +57,8 @@ where
     /// Return the current target (easy for dev).
     fn difficulty(
         &self,
-        _parent: &BlockId<B>,
-    ) -> Result<Self::Difficulty, sp_blockchain::Error> {
+        _parent: B::Hash,
+    ) -> Result<Self::Difficulty, PowError<B>> {
         // Very permissive by default: u64::MAX/1024 as a U256.
         Ok(U256::from(u64::MAX / 1024))
     }
@@ -69,11 +69,14 @@ where
         _parent: &BlockId<B>,
         pre_hash: &B::Hash,
         _digest: Option<&[u8]>,
-        seal: &Seal,
+        seal: &RawSeal,
         target: &Self::Difficulty,
     ) -> Result<bool, PowError<B>> {
-        let Nonce(n) = Nonce::from_seal(seal)
-            .ok_or(PowError::SealDecodeFailed)?;
+        // If the seal cannot be parsed, consider verification failed.
+        let Nonce(n) = match Nonce::from_seal(seal) {
+            Some(n) => n,
+            None => return Ok(false),
+        };
         let work = checksum64::<B>(pre_hash, n);
         Ok(work < target64(target))
     }
