@@ -11,32 +11,25 @@ use sp_runtime::{traits::Block as BlockT, generic::BlockId};
 #[derive(Clone)]
 pub struct MiniPow;
 
+// We accept the default worker's seal format: SCALE-encoded `U256` nonce.
 #[derive(Encode, Decode, Clone, Copy, Debug)]
-pub struct Nonce(u64);
+pub struct Nonce(U256);
 
 impl Nonce {
-    pub fn to_seal(self) -> RawSeal {
-        self.0.to_le_bytes().to_vec()
-    }
     pub fn from_seal(seal: &RawSeal) -> Option<Self> {
-        if seal.len() == 8 {
-            let mut b = [0u8; 8];
-            b.copy_from_slice(&seal[..8]);
-            Some(Nonce(u64::from_le_bytes(b)))
-        } else {
-            None
-        }
+        let mut input = &seal[..];
+        U256::decode(&mut input).ok().map(Nonce)
     }
 }
 
-fn checksum64<B: BlockT>(pre_hash: &B::Hash, nonce: u64) -> u64 {
+fn checksum64<B: BlockT>(pre_hash: &B::Hash, nonce: U256) -> u64 {
     let mut acc: u64 = 0;
     for byte in pre_hash.as_ref() {
         acc = acc.wrapping_add(*byte as u64);
     }
-    for byte in nonce.to_le_bytes() {
-        acc = acc.wrapping_add(byte as u64);
-    }
+    let mut buf = [0u8; 32];
+    nonce.to_little_endian(&mut buf);
+    for byte in buf { acc = acc.wrapping_add(byte as u64); }
     acc
 }
 
