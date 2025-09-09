@@ -1,11 +1,11 @@
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
-use sc_client_api::{BlockBackend, ExecutorProvider};
+use sc_client_api::{BlockBackend, ExecutorProvider, HeaderBackend};
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use std::{sync::Arc, thread, time::Duration};
+use std::{sync::Arc, time::Duration};
 use sp_inherents::CreateInherentDataProviders;
 use sp_core::{Encode, U256};
 use minipow::MiniPow;  // ← our new toy PoW
@@ -248,43 +248,39 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
         telemetry: telemetry.as_mut(),
     })?;
 
-    if role.is_authority() {
-        let proposer_factory = sc_basic_authorship::ProposerFactory::new(
-            task_manager.spawn_handle(),
-            client.clone(),
-            transaction_pool,
-            prometheus_registry.as_ref(),
-            telemetry.as_ref().map(|x| x.handle()),
-        );
+    // Create proposer and authoring gate
+    let proposer_factory = sc_basic_authorship::ProposerFactory::new(
+        task_manager.spawn_handle(),
+        client.clone(),
+        transaction_pool,
+        prometheus_registry.as_ref(),
+        telemetry.as_ref().map(|x| x.handle()),
+    );
 
-        let can_author_with = sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
+    let can_author_with = sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-        // Start the mining worker with MiniPow
-        let (_worker, worker_task) = sc_consensus_pow::start_mining_worker(
-            Box::new(pow_block_import),
-            client.clone(),
-            select_chain.clone(),
-            MiniPow,                        // ← MiniPow here too
-            proposer_factory,
-            network.clone(),
-            network.clone(),
-            None,
-            move |_, ()| async move {
-                let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-                Ok(timestamp)
-            },
-            Duration::from_secs(10),
-            Duration::from_secs(10),
-            can_author_with,
-        );
+    // Start the mining worker with MiniPow (unconditionally)
+    let (_worker, worker_task) = sc_consensus_pow::start_mining_worker(
+        Box::new(pow_block_import),
+        client.clone(),
+        select_chain.clone(),
+        MiniPow,
+        proposer_factory,
+        network.clone(),
+        network.clone(),
+        None,
+        move |_, ()| async move {
+            let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+            Ok(timestamp)
+        },
+        Duration::from_secs(2),
+        Duration::from_secs(2),
+        can_author_with,
+    );
 
-        task_manager
-            .spawn_essential_handle()
-            .spawn_blocking("pow", Some("block-authoring"), worker_task);
-
-        // Legacy manual loop can be dropped or kept if you need it:
-        // thread::spawn(move || { … });
-    }
+    task_manager
+        .spawn_essential_handle()
+        .spawn_blocking("pow", Some("block-authoring"), worker_task);
 
             let (_worker, worker_task) = sc_consensus_pow::start_mining_worker(
             Box::new(pow_block_import),
