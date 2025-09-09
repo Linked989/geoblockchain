@@ -4,6 +4,7 @@ members = [
     "pallets/template",
     "runtime",
     "consensus/sha3pow",
+    "consensus/minipow",
 ]
 exclude = ["contract/health-record"]
 [profile.release]
